@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/ev_dw
+    username: admin
+    password: admin
+  jpa:
+    hibernate:
+      ddl-auto: none  # 기존 DB 스키마 그대로 사용 
+    properties:
+      hibernate:  # JPA가 실제로 DB와 통신할 때 사용하는 엔진
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: true
+
+server:
+  port: 8080   # 내부 포트 그대로 유지 (외부는 docker-compose가 18081로 매핑)

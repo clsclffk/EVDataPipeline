@@ -1,0 +1,108 @@
+# mysql, hadoop, sqoop, spark, postgresql, springboot
+services:
+  mysql:
+    # image: mysql:8.0.44
+    image: mysql:5.7
+    container_name: ev_mysql
+    restart: always
+    command: --local-infile=1 --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ev_data_pipeline
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: admin
+    ports:
+      - "13306:3306"
+    volumes:
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./data:/data
+      - ./mysql/my.cnf:/etc/mysql/conf.d/my.cnf
+    networks:
+      - ev_net
+
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode 
+    environment:
+      - CLUSTER_NAME=ev_data_pipeline
+    ports:
+      - "9870:9870"
+    networks:
+      - ev_net
+     
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: ev_datanode
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:8020
+    depends_on:
+      - namenode
+    ports:
+      - "9864:9864"
+    networks:
+      - ev_net
+
+  sqoop:
+    image: saagie/sqoop:1.4.6-1.129.0_SDKTECHNO-184-3
+    container_name: ev_sqoop
+    depends_on:
+      - mysql
+      - namenode
+    command: ["bash", "-c", "tail -f /dev/null"]
+    environment:
+      - HADOOP_CONF_DIR=/usr/local/hadoop-2.9.0/etc/hadoop
+      - LANG=en_US.UTF-8
+      - LC_ALL=en_US.UTF-8
+      - JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8
+    volumes:
+      - ./sqoop:/usr/local/sqoop/scripts
+      - ./data:/data
+      - ./hadoop_conf/core-site.xml:/usr/local/hadoop-2.9.0/etc/hadoop/core-site.xml
+      - ./hadoop_conf/core-site.xml:/sqoop-1.4.6-cdh5.13.0/conf/core-site.xml
+    networks:
+      - ev_net
+
+  spark:
+    image: bitnami/spark:3.5.0
+    container_name: ev_spark
+    ports:
+      - "17077:7077"
+      - "18080:8080"
+    depends_on:
+      - namenode
+      - postgres
+    volumes:
+      - ./spark:/app
+      - ./data:/data
+    restart: always
+    networks:
+      - ev_net
+
+  postgres:
+    image: postgres:15
+    container_name: ev_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: ev_dw
+    ports:
+      - "15432:5432"
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    networks:
+      - ev_net
+
+  api:
+    build: ./api
+    container_name: ev_api
+    ports:
+      - "18081:8080"
+    depends_on:  # postgres 시작 후 실행
+      - postgres
+    networks:
+      - ev_net
+
+networks:
+  ev_net:
+    driver: bridge
